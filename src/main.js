@@ -11,10 +11,9 @@ async function main() {
     try {
         const input = (await Actor.getInput()) || {};
         const {
-            keyword = '', location = '', department = '', contractType = [],
+            keyword = '', location = '', department = '',
             results_wanted: RESULTS_WANTED_RAW = 100, max_pages: MAX_PAGES_RAW = 999,
             collectDetails = true, startUrl, startUrls, url, proxyConfiguration,
-            remoteWork = [], useApi = true,
         } = input;
 
         const RESULTS_WANTED = Number.isFinite(+RESULTS_WANTED_RAW) ? Math.max(1, +RESULTS_WANTED_RAW) : Number.MAX_SAFE_INTEGER;
@@ -36,16 +35,6 @@ async function main() {
             const u = new URL('https://www.apec.fr/candidat/recherche-emploi.html/emploi');
             if (kw) u.searchParams.set('motsCles', String(kw).trim());
             if (dept) u.searchParams.set('lieux', String(dept).trim());
-            
-            // Add contract types (CDI, CDD, etc)
-            if (Array.isArray(contractType) && contractType.length > 0) {
-                contractType.forEach(type => u.searchParams.append('typesConvention', type));
-            }
-            
-            // Add remote work options
-            if (Array.isArray(remoteWork) && remoteWork.length > 0) {
-                remoteWork.forEach(rw => u.searchParams.append('teletravail', rw));
-            }
             
             return u.href;
         };
@@ -231,8 +220,8 @@ async function main() {
                 if (label === 'LIST') {
                     crawlerLog.info(`Processing LIST page ${pageNo}: ${request.url}`);
                     
-                    // Try API first if enabled
-                    if (useApi && pageNo === 0) {
+                    // Try API first
+                    if (pageNo === 0) {
                         const searchUrl = new URL(request.url);
                         const apiData = await fetchJobsViaAPI(pageNo, Object.fromEntries(searchUrl.searchParams));
                         

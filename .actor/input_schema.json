@@ -1,6 +1,6 @@
 {
   "title": "APEC Jobs Scraper",
-  "description": "Extract job listings from APEC.fr, France's leading executive job board. Search by keyword, department, contract type, and remote work options. Supports both API and HTML parsing methods.",
+  "description": "Extract job listings from APEC.fr, France's leading executive job board. Search by keyword and department to find executive and managerial positions.",
   "type": "object",
   "schemaVersion": 1,
   "properties": {
@@ -26,37 +26,10 @@
       "editor": "textfield",
       "example": "27"
     },
-    "contractType": {
-      "title": "Contract Types",
-      "type": "array",
-      "description": "Filter by contract types. Common codes: 143684 (Entreprise), 143685 (Cabinet), 143686 (Agence), 143687 (SSII/ESN).",
-      "editor": "json",
-      "items": {
-        "type": "string"
-      },
-      "default": []
-    },
-    "remoteWork": {
-      "title": "Remote Work Options",
-      "type": "array",
-      "description": "Filter by remote work availability (télétravail).",
-      "editor": "json",
-      "items": {
-        "type": "string"
-      },
-      "default": []
-    },
     "collectDetails": {
       "title": "Collect Full Job Details",
       "type": "boolean",
       "description": "Visit each job detail page to extract complete descriptions and additional information.",
-      "editor": "checkbox",
-      "default": true
-    },
-    "useApi": {
-      "title": "Use API Method",
-      "type": "boolean",
-      "description": "Try to use APEC's JSON API first before falling back to HTML parsing (faster and more reliable).",
       "editor": "checkbox",
       "default": true
     },
@@ -65,7 +38,7 @@
       "type": "integer",
       "description": "Maximum number of job listings to collect (set to high number for all results).",
       "minimum": 1,
-      "default": 100,
+      "default": 20,
       "editor": "number"
     },
     "max_pages": {
@@ -74,7 +47,7 @@
       "description": "Maximum number of result pages to process (safety limit).",
       "minimum": 1,
       "editor": "number",
-      "default": 20
+      "default": 3
     },
     "proxyConfiguration": {
       "title": "Proxy Configuration",

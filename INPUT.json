@@ -1,10 +1,7 @@
 {
   "keyword": "ingénieur logiciel",
   "department": "27",
-  "contractType": ["143684", "143685", "143686", "143687", "143706"],
-  "results_wanted": 100,
-  "max_pages": 10,
-  "collectDetails": true,
-  "useApi": true,
-  "remoteWork": []
+  "results_wanted": 20,
+  "max_pages": 3,
+  "collectDetails": true
 }

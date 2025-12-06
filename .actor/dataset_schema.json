@@ -11,6 +11,8 @@
           "location",
           "salary",
           "job_type",
+          "experience",
+          "remote_work",
           "date_posted",
           "url"
         ]
@@ -35,7 +37,15 @@
             "format": "text"
           },
           "job_type": {
-            "label": "Job Type",
+            "label": "Contract Type",
+            "format": "text"
+          },
+          "experience": {
+            "label": "Experience",
+            "format": "text"
+          },
+          "remote_work": {
+            "label": "Remote",
             "format": "text"
           },
           "date_posted": {
