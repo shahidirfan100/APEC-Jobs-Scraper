@@ -362,7 +362,6 @@ async function main() {
         useSessionPool: true,
         minConcurrency: 1,
         maxConcurrency,
-        requestTimeoutSecs: 60,
         requestHandlerTimeoutSecs: 90,
         preNavigationHooks: [
             async ({ request }) => {
