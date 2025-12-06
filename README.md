@@ -1,13 +1,12 @@
-# APEC Jobs Scraper
+# APEC Jobs Scraper (Playwright)
 
-Fast, production-ready Apify actor that extracts executive and managerial jobs from APEC.fr using an API-first strategy with an HTML fallback for robustness.
+Playwright-powered Apify actor that extracts executive and managerial jobs from APEC.fr (SPA). Renders pages, paginates, and collects full job details.
 
 ## What it does
-- API-first search (multiple APEC endpoints tried) with automatic HTML fallback if the API returns nothing.
-- Supports keyword, city/department, contract type codes, and remote-work filters.
-- Optional full detail crawl (JSON-LD first, then CSS selectors) with cleaned text + HTML descriptions.
-- Stealth mode: rotating realistic headers, optional delay + jitter, proxy ready (Apify residential recommended).
-- Pagination with hard caps for `results_wanted` and `max_pages` to avoid runaway runs.
+- Uses `PlaywrightCrawler` to render APEC’s SPA search listings and detail pages.
+- Extracts title, company, location, salary from listings; enriches with description + metadata from detail pages.
+- Paginates by clicking the “next” button until limits are hit.
+- Proxy-ready (Apify residential recommended) with headless Chrome user agent.
 
 ## Inputs (simplified)
 
@@ -43,17 +42,17 @@ Fast, production-ready Apify actor that extracts executive and managerial jobs f
 ```
 
 ## How it works
-1) Build search parameters (keyword, city/department, contract type, remote).  
-2) API attempt: POST/GET against known APEC endpoints with pagination; enqueue detail pages when needed.  
-3) HTML fallback: HTTP + Cheerio; extract cards, paginate, and optionally visit detail pages.  
-4) Detail parsing: JSON-LD first, then resilient selectors; produce both cleaned text and HTML.  
-5) Output: normalized dataset with `source` (`api`, `html-listing`, `html-detail`) and `fetched_at`.
+1) Build search URL (keyword + city/department).  
+2) Render listing page with Playwright; extract jobs and enqueue detail pages.  
+3) Click through pagination until limits.  
+4) On detail pages, extract description and metadata; merge with listing data.  
+5) Save to dataset.
 
 ## Output fields
 - `title`, `company`, `location`, `salary`, `job_type`, `experience`, `remote_work`, `date_posted`
 - `description_text`, `description_html`, `url`, `source`, `fetched_at`
 
 ## Tips
-- The actor automatically tries the JSON API first and falls back to HTML if needed.
-- If you see throttling, lower `maxConcurrency` and use Apify residential proxies.
-- For quick smoke tests, set `results_wanted` to 5–10 and `max_pages` to 1–2.
+- Use Apify residential proxies for best reliability.
+- If throttled, lower `maxConcurrency` (default 2) and keep `max_pages` modest for smoke tests (1–2).
+- Ensure `startUrl` is a valid APEC search URL or provide keyword/department to build one.

@@ -9,10 +9,9 @@
           "title",
           "company",
           "location",
-          "salary",
-          "job_type",
           "experience",
-          "remote_work",
+          "salary",
+          "skills",
           "date_posted",
           "url"
         ]
@@ -32,20 +31,16 @@
             "label": "Location",
             "format": "text"
           },
-          "salary": {
-            "label": "Salary",
-            "format": "text"
-          },
-          "job_type": {
-            "label": "Contract Type",
-            "format": "text"
-          },
           "experience": {
             "label": "Experience",
             "format": "text"
           },
-          "remote_work": {
-            "label": "Remote",
+          "salary": {
+            "label": "Salary",
+            "format": "text"
+          },
+          "skills": {
+            "label": "Skills",
             "format": "text"
           },
           "date_posted": {
