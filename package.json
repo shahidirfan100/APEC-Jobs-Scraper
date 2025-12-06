@@ -9,6 +9,6 @@
   "dependencies": {
     "apify": "^3.4.5",
     "crawlee": "^3.14.1",
-    "playwright": "^1.48.2"
+    "playwright": "^1.54.1"
   }
 }
