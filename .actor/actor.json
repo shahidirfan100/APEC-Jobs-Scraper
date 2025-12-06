@@ -1,0 +1,20 @@
+{
+  "actorSpecification": 1,
+  "name": "apec-jobs-scraper",
+  "title": "APEC Jobs Scraper",
+  "version": "1.0.0",
+  "buildTag": "latest",
+  "dockerfile": "./Dockerfile",
+  "readme": "../README.md",
+  "input": "./input_schema.json",
+  "output": "./output_schema.json",
+  "nodeJsVersion": "22",
+  "storages": {
+    "dataset": "./dataset_schema.json"
+  },
+  "categories": ["BUSINESS"],
+  "seo": {
+    "title": "APEC Jobs Scraper - Extract French Executive Jobs",
+    "description": "Extract job listings from APEC.fr - France's leading platform for executive and managerial positions. Get comprehensive job data including salary, contract type, location, and full job descriptions."
+  }
+}
