@@ -1,62 +1,6 @@
 {
   "actorSpecification": 1,
-  "fields": {
-    "title": {
-      "type": "string",
-      "title": "Job Title",
-      "description": "The job position title"
-    },
-    "company": {
-      "type": "string",
-      "title": "Company",
-      "description": "Company or organization name"
-    },
-    "location": {
-      "type": "string",
-      "title": "Location",
-      "description": "Job location (city, department)"
-    },
-    "salary": {
-      "type": "string",
-      "title": "Salary",
-      "description": "Salary range or information"
-    },
-    "job_type": {
-      "type": "string",
-      "title": "Contract Type",
-      "description": "Type of contract (CDI, CDD, Intérim, etc.)"
-    },
-    "date_posted": {
-      "type": "string",
-      "title": "Date Posted",
-      "description": "When the job was published"
-    },
-    "experience": {
-      "type": "string",
-      "title": "Experience",
-      "description": "Required experience level"
-    },
-    "remote_work": {
-      "type": "string",
-      "title": "Remote Work",
-      "description": "Remote work options (télétravail)"
-    },
-    "description_text": {
-      "type": "string",
-      "title": "Description (Text)",
-      "description": "Plain text job description"
-    },
-    "description_html": {
-      "type": "string",
-      "title": "Description (HTML)",
-      "description": "HTML formatted job description"
-    },
-    "url": {
-      "type": "string",
-      "title": "Job URL",
-      "description": "Direct link to the job posting"
-    }
-  },
+  "fields": {},
   "views": {
     "overview": {
       "title": "Overview",
@@ -67,8 +11,6 @@
           "location",
           "salary",
           "job_type",
-          "experience",
-          "remote_work",
           "date_posted",
           "url"
         ]
@@ -93,15 +35,7 @@
             "format": "text"
           },
           "job_type": {
-            "label": "Contract Type",
-            "format": "text"
-          },
-          "experience": {
-            "label": "Experience",
-            "format": "text"
-          },
-          "remote_work": {
-            "label": "Remote",
+            "label": "Job Type",
             "format": "text"
           },
           "date_posted": {
