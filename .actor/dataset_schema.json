@@ -1,20 +1,6 @@
 {
   "actorSpecification": 1,
-  "fields": {
-    "title": { "type": "string", "description": "Job title" },
-    "company": { "type": "string", "description": "Company name" },
-    "location": { "type": "string", "description": "Job location" },
-    "salary": { "type": "string", "description": "Salary or compensation" },
-    "job_type": { "type": "string", "description": "Contract type" },
-    "experience": { "type": "string", "description": "Experience requirement" },
-    "remote_work": { "type": "string", "description": "Remote work information" },
-    "date_posted": { "type": "string", "description": "Posting date" },
-    "description_text": { "type": "string", "description": "Cleaned description text" },
-    "description_html": { "type": "string", "description": "HTML description" },
-    "url": { "type": "string", "description": "Detail page URL" },
-    "source": { "type": "string", "description": "Extraction source (api/html-listing/html-detail)" },
-    "fetched_at": { "type": "string", "description": "ISO timestamp when fetched" }
-  },
+  "fields": {},
   "views": {
     "overview": {
       "title": "Overview",
