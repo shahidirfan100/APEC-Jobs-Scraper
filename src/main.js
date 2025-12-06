@@ -1,6 +1,7 @@
 // APEC Jobs scraper - PlaywrightCrawler (SPA) implementation
 import { Actor, log } from 'apify';
 import { PlaywrightCrawler, Dataset } from 'crawlee';
+import { load as cheerioLoad } from 'cheerio';
 
 const SELECTORS = {
     listItem: 'li.list-annonce__item',
@@ -8,7 +9,13 @@ const SELECTORS = {
     company: 'p.list-annonce__entreprise',
     location: 'p.list-annonce__localisation',
     salary: 'span.list-annonce__salaire',
+    date: 'time.list-annonce__date, span.list-annonce__date',
     paginationNext: 'button.pagination__btn--next',
+    listFallbackItem: 'article.card-offre',
+    listFallbackTitleLink: 'article.card-offre h2 a, article.card-offre h2.card-title a',
+    listFallbackCompany: 'article.card-offre .card-company, article.card-offre [class*="company"]',
+    listFallbackLocation: 'article.card-offre .card-location, article.card-offre [class*="location"]',
+    listFallbackSalary: 'article.card-offre .card-salary, article.card-offre [class*="salaire"]',
     detailDescription: 'div.offre-description__content',
     detailMetadata: 'div.offre-informations__meta',
 };
@@ -23,6 +30,13 @@ const buildSearchUrl = ({ keyword, location, department }) => {
 
 const defaultUserAgent =
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.0.0 Safari/537.36';
+
+const cleanText = (html) => {
+    if (!html) return null;
+    const $ = cheerioLoad(html);
+    $('script, style, noscript').remove();
+    return $.root().text().replace(/\s+/g, ' ').trim();
+};
 
 await Actor.init();
 
@@ -84,25 +98,56 @@ async function main() {
 
                 crawlerLog.info(`LIST page ${pageNo}: ${request.url}`);
 
-                await page.waitForSelector(SELECTORS.listItem, { timeout: 20000 });
+                try {
+                    // Wait for either primary or fallback listing selectors
+                    await page.waitForSelector(`${SELECTORS.listItem}, ${SELECTORS.listFallbackItem}`, { timeout: 20000 });
+                } catch (e) {
+                    crawlerLog.warning(`No listings found on page ${pageNo}, skipping. (${e.message})`);
+                    return;
+                }
 
-                const jobs = await page.$$eval(SELECTORS.listItem, (items, selectors) => {
-                    return items.map((item) => {
-                        const getText = (sel) => {
-                            const el = item.querySelector(sel);
-                            return el ? el.textContent.trim() : null;
-                        };
-                        const linkEl = item.querySelector(selectors.titleLink);
-                        const url = linkEl ? linkEl.href : null;
-                        const title = linkEl ? linkEl.textContent.trim() : null;
-                        const company = getText(selectors.company);
-                        const location = getText(selectors.location);
-                        const salary = getText(selectors.salary);
-                        return { url, title, company, location, salary };
-                    }).filter((j) => j.url);
+                const jobsPrimary = await page.$$eval(SELECTORS.listItem, (items, selectors) => {
+                    return items
+                        .map((item) => {
+                            const getText = (sel) => {
+                                const el = item.querySelector(sel);
+                                return el ? el.textContent.trim() : null;
+                            };
+                            const linkEl = item.querySelector(selectors.titleLink);
+                            const url = linkEl ? linkEl.href : null;
+                            const title = linkEl ? linkEl.textContent.trim() : null;
+                            const company = getText(selectors.company);
+                            const location = getText(selectors.location);
+                            const salary = getText(selectors.salary);
+                            const date_posted = getText(selectors.date);
+                            return { url, title, company, location, salary, date_posted };
+                        })
+                        .filter((j) => j.url);
                 }, SELECTORS);
 
+                const jobsFallback = await page.$$eval(SELECTORS.listFallbackItem, (items, selectors) => {
+                    return items
+                        .map((item) => {
+                            const getText = (sel) => {
+                                const el = item.querySelector(sel);
+                                return el ? el.textContent.trim() : null;
+                            };
+                            const linkEl = item.querySelector(selectors.listFallbackTitleLink);
+                            const url = linkEl ? linkEl.href : null;
+                            const title = linkEl ? linkEl.textContent.trim() : null;
+                            const company = getText(selectors.listFallbackCompany);
+                            const location = getText(selectors.listFallbackLocation);
+                            const salary = getText(selectors.listFallbackSalary);
+                            return { url, title, company, location, salary };
+                        })
+                        .filter((j) => j.url);
+                }, SELECTORS);
+
+                const jobs = [...jobsPrimary, ...jobsFallback];
+
                 crawlerLog.info(`Found ${jobs.length} jobs on page ${pageNo}`);
+
+                if (!jobs.length) return;
 
                 for (const job of jobs) {
                     if (saved >= RESULTS_WANTED) break;
@@ -120,6 +165,7 @@ async function main() {
                             job_type: null,
                             description: null,
                             metadata: {},
+                            fetched_at: new Date().toISOString(),
                             applyLink: job.url,
                             url: job.url,
                             id: job.url,
@@ -158,14 +204,16 @@ async function main() {
                 if (saved >= RESULTS_WANTED) return;
                 const base = request.userData?.jobData || {};
 
-                await page.waitForSelector(SELECTORS.detailDescription, { timeout: 20000 }).catch(() => null);
+                await page.waitForSelector(`${SELECTORS.detailDescription}, ${SELECTORS.detailMetadata}`, { timeout: 20000 }).catch(() => null);
 
-                const description = await page.$eval(SELECTORS.detailDescription, (el) => el.textContent.trim()).catch(() => null);
+                const descriptionHtml = await page.$eval(SELECTORS.detailDescription, (el) => el.innerHTML).catch(() => null);
+                const description = descriptionHtml ? cleanText(descriptionHtml) : null;
+
                 const metadataPairs = await page.$$eval(SELECTORS.detailMetadata + ' *', (nodes) => {
                     const pairs = [];
                     nodes.forEach((node) => {
                         const key = node.querySelector('span, strong, b');
-                        const val = node.querySelector('p, div, span:nth-child(2)');
+                        const val = node.querySelector('p, div, span:nth-child(2), span + span');
                         if (key && val) {
                             pairs.push([key.textContent.trim(), val.textContent.trim()]);
                         }
@@ -187,8 +235,11 @@ async function main() {
                     job_type: metadata['Contrat'] || metadata['Type de contrat'] || null,
                     description: description || null,
                     metadata,
+                    description_html: descriptionHtml || null,
+                    description_text: description || null,
                     applyLink: request.url,
                     url: request.url,
+                    fetched_at: new Date().toISOString(),
                     source: 'detail',
                 };
 

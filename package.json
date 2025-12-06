@@ -1,8 +1,8 @@
 {
   "name": "apec-jobs-scraper",
-  "version": "1.0.0",
-  "description": "Playwright-based APEC job scraper for SPA content.",
-  type": "module",
+  "version": "2.0.0",
+  "description": "APEC.fr job scraper - Extract executive and managerial job listings from France's leading job board with API and HTML parsing support.",
+  "type": "module",
     "dependencies": {
         "apify": "^3.4.2",
         "crawlee": "^3.13.8",
