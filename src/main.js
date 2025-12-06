@@ -16,6 +16,8 @@ const SELECTORS = {
     listFallbackCompany: 'article.card-offre .card-company, article.card-offre [class*="company"]',
     listFallbackLocation: 'article.card-offre .card-location, article.card-offre [class*="location"]',
     listFallbackSalary: 'article.card-offre .card-salary, article.card-offre [class*="salaire"]',
+    listFallbackLinkContains: 'a[href*="/detail-offre/"]',
+    paginationNextAlt: 'a.pagination__next, a[rel="next"], a[aria-label="Suivant"], button[aria-label="Suivant"]',
     detailDescription: 'div.offre-description__content',
     detailMetadata: 'div.offre-informations__meta',
 };
@@ -36,6 +38,18 @@ const cleanText = (html) => {
     const $ = cheerioLoad(html);
     $('script, style, noscript').remove();
     return $.root().text().replace(/\s+/g, ' ').trim();
+};
+
+const acceptCookiesIfPresent = async (page) => {
+    try {
+        const btn = await page.$('button#didomi-notice-agree-button, button[data-testid="uc-accept-all"], button:has-text("Accepter"), button:has-text("Tout accepter")');
+        if (btn) {
+            await btn.click({ timeout: 2000 }).catch(() => null);
+            await page.waitForTimeout(500);
+        }
+    } catch {
+        // ignore
+    }
 };
 
 await Actor.init();
@@ -79,6 +93,7 @@ async function main() {
         },
         preNavigationHooks: [
             async ({ page, request }, gotoOptions) => {
+                await acceptCookiesIfPresent(page);
                 await page.setExtraHTTPHeaders({
                     'User-Agent': defaultUserAgent,
                     Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
@@ -98,11 +113,13 @@ async function main() {
 
                 crawlerLog.info(`LIST page ${pageNo}: ${request.url}`);
 
-                try {
-                    // Wait for either primary or fallback listing selectors
-                    await page.waitForSelector(`${SELECTORS.listItem}, ${SELECTORS.listFallbackItem}`, { timeout: 20000 });
-                } catch (e) {
-                    crawlerLog.warning(`No listings found on page ${pageNo}, skipping. (${e.message})`);
+                await page.waitForLoadState('networkidle', { timeout: 25000 }).catch(() => null);
+                await acceptCookiesIfPresent(page);
+
+                // Wait for either primary or fallback listing selectors
+                const listingReady = await page.waitForSelector(`${SELECTORS.listItem}, ${SELECTORS.listFallbackItem}, ${SELECTORS.listFallbackLinkContains}`, { timeout: 25000 }).catch(() => null);
+                if (!listingReady) {
+                    crawlerLog.warning(`No listings found on page ${pageNo}, skipping.`);
                     return;
                 }
 
@@ -123,7 +140,7 @@ async function main() {
                             return { url, title, company, location, salary, date_posted };
                         })
                         .filter((j) => j.url);
-                }, SELECTORS);
+                }, SELECTORS).catch(() => []);
 
                 const jobsFallback = await page.$$eval(SELECTORS.listFallbackItem, (items, selectors) => {
                     return items
@@ -141,9 +158,22 @@ async function main() {
                             return { url, title, company, location, salary };
                         })
                         .filter((j) => j.url);
-                }, SELECTORS);
+                }, SELECTORS).catch(() => []);
 
-                const jobs = [...jobsPrimary, ...jobsFallback];
+                // Fallback: parse page HTML with cheerio for any /detail-offre/ links
+                let jobsCheerio = [];
+                if (!jobsPrimary.length && !jobsFallback.length) {
+                    const html = await page.content();
+                    const $ = cheerioLoad(html);
+                    const links = new Set();
+                    $('a[href*="/detail-offre/"]').each((_, el) => {
+                        const href = $(el).attr('href');
+                        if (href) links.add(new URL(href, request.url).href);
+                    });
+                    jobsCheerio = Array.from(links).map((url) => ({ url }));
+                }
+
+                const jobs = [...jobsPrimary, ...jobsFallback, ...jobsCheerio];
 
                 crawlerLog.info(`Found ${jobs.length} jobs on page ${pageNo}`);
 
@@ -178,7 +208,7 @@ async function main() {
                 if (saved >= RESULTS_WANTED) return;
 
                 if (pageNo + 1 < MAX_PAGES) {
-                    const nextButton = await page.$(SELECTORS.paginationNext);
+                    const nextButton = (await page.$(SELECTORS.paginationNext)) || (await page.$(SELECTORS.paginationNextAlt));
                     if (nextButton) {
                         const disabled = await nextButton.getAttribute('disabled');
                         if (!disabled) {
@@ -186,7 +216,7 @@ async function main() {
                                 page.waitForNavigation({ waitUntil: 'networkidle', timeout: 30000 }).catch(() => null),
                                 nextButton.click(),
                             ]);
-                            await page.waitForTimeout(1500);
+                            await page.waitForTimeout(2000);
                             const nextUrl = page.url();
                             if (!seenListingUrls.has(nextUrl)) {
                                 await enqueueLinks({
