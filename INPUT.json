@@ -1,7 +1,10 @@
 {
-  "keyword": "ingénieur logiciel",
-  "department": "27",
-  "results_wanted": 20,
-  "max_pages": 3,
-  "collectDetails": true
+  "keyword": "ingenieur logiciel",
+  "location": "Paris",
+  "contractType": ["143684"],
+  "remoteWork": ["partiel"],
+  "results_wanted": 10,
+  "max_pages": 2,
+  "collectDetails": true,
+  "useApi": true
 }
