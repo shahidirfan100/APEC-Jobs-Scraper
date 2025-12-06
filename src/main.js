@@ -360,8 +360,18 @@ async function main() {
         proxyConfiguration: proxyConf,
         maxRequestRetries: 2,
         useSessionPool: true,
+        minConcurrency: 1,
         maxConcurrency,
-        requestHandlerTimeoutSecs: 70,
+        requestTimeoutSecs: 60,
+        requestHandlerTimeoutSecs: 90,
+        preNavigationHooks: [
+            async ({ request }) => {
+                request.headers = {
+                    ...buildHeaders(),
+                    ...(request.headers || {}),
+                };
+            },
+        ],
         async requestHandler({ request, $, log: crawlerLog }) {
             const label = request.userData?.label || 'LIST';
             const pageNo = request.userData?.pageNo || 0;
