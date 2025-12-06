@@ -40,14 +40,6 @@ const toAbs = (href, base = 'https://www.apec.fr') => {
     }
 };
 
-const normalizeArray = (value) => {
-    if (Array.isArray(value)) return value.filter(Boolean).map(String);
-    if (typeof value === 'string') {
-        return value.split(',').map((s) => s.trim()).filter(Boolean);
-    }
-    return [];
-};
-
 const cleanText = (html) => {
     if (!html) return '';
     const $ = cheerioLoad(html);
@@ -61,16 +53,6 @@ const parseSearchFromUrl = (urlStr) => {
         const u = new URL(urlStr);
         res.motsCles = u.searchParams.get('motsCles') || u.searchParams.get('keyword') || undefined;
         res.lieux = u.searchParams.get('lieux') || u.searchParams.get('location') || undefined;
-        const tc = [
-            ...u.searchParams.getAll('typesConvention'),
-            ...(u.searchParams.get('typesConvention') ? u.searchParams.get('typesConvention').split(',') : []),
-        ].filter(Boolean);
-        const tele = [
-            ...u.searchParams.getAll('teletravail'),
-            ...(u.searchParams.get('teletravail') ? u.searchParams.get('teletravail').split(',') : []),
-        ].filter(Boolean);
-        if (tc.length) res.typesConvention = tc;
-        if (tele.length) res.teletravail = tele;
     } catch {
         // ignore
     }
@@ -81,8 +63,6 @@ const buildSearchParams = (input, urlDerived = {}) => {
     const params = {
         motsCles: input.keyword?.trim() || urlDerived.motsCles,
         lieux: input.location?.trim() || input.department?.trim() || urlDerived.lieux,
-        typesConvention: normalizeArray(input.contractType || urlDerived.typesConvention),
-        teletravail: normalizeArray(input.remoteWork || urlDerived.teletravail),
     };
     return params;
 };
@@ -91,8 +71,6 @@ const buildSearchUrl = (searchParams) => {
     const u = new URL('https://www.apec.fr/candidat/recherche-emploi.html/emploi');
     if (searchParams.motsCles) u.searchParams.set('motsCles', searchParams.motsCles);
     if (searchParams.lieux) u.searchParams.set('lieux', searchParams.lieux);
-    (searchParams.typesConvention || []).forEach((tc) => u.searchParams.append('typesConvention', tc));
-    (searchParams.teletravail || []).forEach((t) => u.searchParams.append('teletravail', t));
     return u.href;
 };
 
@@ -137,8 +115,6 @@ const fetchJobsViaApi = async (pageNum, searchParams, proxyConf) => {
                 size: API_PAGE_SIZE,
                 motsCles: searchParams.motsCles || undefined,
                 lieux: searchParams.lieux || undefined,
-                typesConvention: searchParams.typesConvention || undefined,
-                teletravail: searchParams.teletravail || undefined,
             };
 
             const reqOptions = {
@@ -158,8 +134,6 @@ const fetchJobsViaApi = async (pageNum, searchParams, proxyConf) => {
                 u.searchParams.set('size', String(API_PAGE_SIZE));
                 if (searchParams.motsCles) u.searchParams.set('motsCles', searchParams.motsCles);
                 if (searchParams.lieux) u.searchParams.set('lieux', searchParams.lieux);
-                (searchParams.typesConvention || []).forEach((tc) => u.searchParams.append('typesConvention', tc));
-                (searchParams.teletravail || []).forEach((t) => u.searchParams.append('teletravail', t));
                 reqOptions.url = u.href;
             }
 
@@ -335,35 +309,30 @@ async function main() {
         keyword = '',
         location = '',
         department = '',
-        contractType = [],
-        remoteWork = [],
         startUrl,
-        startUrls = [],
         url,
         results_wanted: RESULTS_WANTED_RAW = 100,
         max_pages: MAX_PAGES_RAW = 5,
         collectDetails = true,
-        useApi = true,
-        logLevel = 'INFO',
         proxyConfiguration,
         maxConcurrency = 8,
-        requestDelayMillis = 0,
     } = input;
 
-    log.setLevel(String(logLevel).toLowerCase());
+    const USE_API = true;
+    const REQUEST_DELAY_MS = 0;
+    log.setLevel('INFO');
 
     const RESULTS_WANTED = Number.isFinite(+RESULTS_WANTED_RAW) ? Math.max(1, +RESULTS_WANTED_RAW) : 1;
     const MAX_PAGES = Number.isFinite(+MAX_PAGES_RAW) ? Math.max(1, +MAX_PAGES_RAW) : 1;
     const proxyConf = proxyConfiguration ? await Actor.createProxyConfiguration({ ...proxyConfiguration }) : undefined;
 
     const initialUrls = [];
-    if (Array.isArray(startUrls) && startUrls.length) initialUrls.push(...startUrls.filter(Boolean));
     if (startUrl) initialUrls.push(startUrl);
     if (url) initialUrls.push(url);
 
     const derivedParams = initialUrls.length ? parseSearchFromUrl(initialUrls[0]) : {};
     const searchParams = buildSearchParams(
-        { keyword, location, department, contractType, remoteWork },
+        { keyword, location, department },
         derivedParams,
     );
     if (!initialUrls.length) initialUrls.push(buildSearchUrl(searchParams));
@@ -396,18 +365,18 @@ async function main() {
             const label = request.userData?.label || 'LIST';
             const pageNo = request.userData?.pageNo || 0;
             const search = request.userData?.searchParams || searchParams;
-            const allowApi = request.userData?.allowApi !== false;
+            const allowApi = USE_API;
 
-            if (requestDelayMillis) {
-                const jitter = Math.floor(requestDelayMillis * 0.25 * Math.random());
-                await Actor.sleep(requestDelayMillis + jitter);
+            if (REQUEST_DELAY_MS) {
+                const jitter = Math.floor(REQUEST_DELAY_MS * 0.25 * Math.random());
+                await Actor.sleep(REQUEST_DELAY_MS + jitter);
             }
 
             if (label === 'LIST') {
                 crawlerLog.info(`LIST page ${pageNo}: ${request.url}`);
 
                 // API first
-                if (useApi && allowApi) {
+                if (USE_API && allowApi) {
                     const apiRes = await fetchJobsViaApi(pageNo, search, proxyConf);
                     crawlerLog.debug(`API page ${pageNo} returned ${apiRes.jobs.length} jobs (total ${apiRes.totalCount})`);
 
@@ -468,7 +437,7 @@ async function main() {
                         crawlerLog.info(`Enqueuing next page: ${next}`);
                         await requestQueue.addRequest({
                             url: next,
-                            userData: { label: 'LIST', pageNo: pageNo + 1, searchParams: search, allowApi: !useApi ? false : allowApi },
+                            userData: { label: 'LIST', pageNo: pageNo + 1, searchParams: search, allowApi: allowApi },
                         });
                     }
                 }

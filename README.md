@@ -9,24 +9,18 @@ Fast, production-ready Apify actor that extracts executive and managerial jobs f
 - Stealth mode: rotating realistic headers, optional delay + jitter, proxy ready (Apify residential recommended).
 - Pagination with hard caps for `results_wanted` and `max_pages` to avoid runaway runs.
 
-## Inputs
+## Inputs (simplified)
 
 | Field | Type | Notes |
 | --- | --- | --- |
-| `startUrls` | array<string> | List of APEC search result URLs to run. |
-| `startUrl` | string | Single search URL (overrides keyword/department for that run). |
+| `startUrl` | string | APEC search URL to scrape (overrides keyword/location/department). |
 | `keyword` | string | e.g., `ingenieur logiciel`, `chef de projet`. |
 | `location` | string | City/region (overrides department if set). |
 | `department` | string | Department code (e.g., `75`, `27`, `69`). |
-| `contractType` | array<string> | Contract type codes (e.g., `143684` company, `143685` recruitment agency). |
-| `remoteWork` | array<string> | Remote filter values (e.g., `partiel`, `total`). |
 | `collectDetails` | boolean | Visit detail pages for full descriptions. |
-| `useApi` | boolean | Try JSON API first (faster); falls back to HTML automatically. |
 | `results_wanted` | integer | Max jobs to collect. |
 | `max_pages` | integer | Max listing pages to traverse. |
 | `maxConcurrency` | integer | Concurrency tuning (speed vs. blocking risk). |
-| `requestDelayMillis` | integer | Optional delay (ms) + small jitter between requests. |
-| `logLevel` | string | `ERROR`, `WARNING`, `INFO`, `DEBUG`. |
 | `proxyConfiguration` | object | Use Apify Proxy (RESIDENTIAL recommended). |
 
 ### Example: Software engineers in Paris
@@ -34,22 +28,16 @@ Fast, production-ready Apify actor that extracts executive and managerial jobs f
 {
   "keyword": "ingenieur logiciel",
   "location": "Paris",
-  "contractType": ["143684"],
-  "remoteWork": ["partiel"],
   "results_wanted": 40,
-  "collectDetails": true,
-  "useApi": true
+  "collectDetails": true
 }
 ```
 
-### Example: Direct URL list
+### Example: Direct URL
 ```json
 {
-  "startUrls": [
-    "https://www.apec.fr/candidat/recherche-emploi.html/emploi?lieux=75&motsCles=data",
-    "https://www.apec.fr/candidat/recherche-emploi.html/emploi?lieux=69&motsCles=chef%20de%20projet"
-  ],
-  "results_wanted": 60,
+  "startUrl": "https://www.apec.fr/candidat/recherche-emploi.html/emploi?lieux=75&motsCles=data",
+  "results_wanted": 30,
   "collectDetails": false
 }
 ```
@@ -66,7 +54,6 @@ Fast, production-ready Apify actor that extracts executive and managerial jobs f
 - `description_text`, `description_html`, `url`, `source`, `fetched_at`
 
 ## Tips
-- Keep `useApi: true` for speed; HTML fallback is automatic when the API yields nothing.
-- If you see throttling, lower `maxConcurrency` and set a small `requestDelayMillis` (e.g., 500–1000).
-- Use Apify residential proxies for best reliability.
-- For quick smoke tests, set `results_wanted` to 5–10 and `max_pages` to 1–2 with `logLevel: "DEBUG"`.
+- The actor automatically tries the JSON API first and falls back to HTML if needed.
+- If you see throttling, lower `maxConcurrency` and use Apify residential proxies.
+- For quick smoke tests, set `results_wanted` to 5–10 and `max_pages` to 1–2.

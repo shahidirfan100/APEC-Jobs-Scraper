@@ -1,33 +1,20 @@
 {
   "title": "APEC Jobs Scraper",
-  "description": "Extract job listings from APEC.fr, France's leading executive job board. Search by keyword, city/department, contract type, and remote options.",
+  "description": "Extract job listings from APEC.fr. Provide a search URL or use keyword + location/department.",
   "type": "object",
   "schemaVersion": 1,
   "properties": {
-    "startUrls": {
-      "title": "Start URLs",
-      "type": "array",
-      "description": "List of APEC search result URLs to process (each URL is treated independently).",
-      "editor": "stringList",
-      "items": {
-        "type": "string"
-      },
-      "example": [
-        "https://www.apec.fr/candidat/recherche-emploi.html/emploi?lieux=75&motsCles=ingenieur",
-        "https://www.apec.fr/candidat/recherche-emploi.html/emploi?lieux=69&motsCles=chef%20de%20projet"
-      ]
-    },
     "startUrl": {
       "title": "Start URL",
       "type": "string",
-      "description": "Start scraping from a specific APEC search URL. If provided, this overrides keyword/department settings for that run.",
+      "description": "APEC search URL to scrape. If set, overrides keyword/location/department.",
       "editor": "textfield",
-      "example": "https://www.apec.fr/candidat/recherche-emploi.html/emploi?lieux=27"
+      "example": "https://www.apec.fr/candidat/recherche-emploi.html/emploi?lieux=27&motsCles=ingenieur"
     },
     "keyword": {
       "title": "Search Keywords",
       "type": "string",
-      "description": "Job title or skills to search for (e.g., 'Ingénieur Logiciel', 'Chef de Projet', 'Développeur').",
+      "description": "Job title or skills to search (e.g., 'ingenieur logiciel', 'chef de projet').",
       "editor": "textfield",
       "prefill": "ingenieur",
       "example": "ingenieur logiciel"
@@ -35,7 +22,7 @@
     "location": {
       "title": "City or Region",
       "type": "string",
-      "description": "City or region to search (e.g., 'Paris', 'Lyon'). If set, this overrides department.",
+      "description": "City or region to search (e.g., 'Paris', 'Lyon'). Overrides department if set.",
       "editor": "textfield",
       "example": "Paris"
     },
@@ -46,26 +33,6 @@
       "editor": "textfield",
       "example": "27"
     },
-    "contractType": {
-      "title": "Contract Type Codes",
-      "type": "array",
-      "description": "Optional filter by contract type codes (e.g., 143684 company, 143685 recruitment agency).",
-      "editor": "stringList",
-      "items": {
-        "type": "string"
-      },
-      "example": ["143684", "143685"]
-    },
-    "remoteWork": {
-      "title": "Remote Work Filters",
-      "type": "array",
-      "description": "Filter by remote work options (e.g., 'partiel', 'total').",
-      "editor": "stringList",
-      "items": {
-        "type": "string"
-      },
-      "example": ["total"]
-    },
     "collectDetails": {
       "title": "Collect Full Job Details",
       "type": "boolean",
@@ -73,17 +40,10 @@
       "editor": "checkbox",
       "default": true
     },
-    "useApi": {
-      "title": "Use JSON API First",
-      "type": "boolean",
-      "description": "Try the JSON API (faster) before HTML parsing. Falls back to HTML automatically if the API returns nothing.",
-      "editor": "checkbox",
-      "default": true
-    },
     "results_wanted": {
       "title": "Maximum Jobs to Extract",
       "type": "integer",
-      "description": "Maximum number of job listings to collect (set to high number for all results).",
+      "description": "Maximum number of job listings to collect.",
       "minimum": 1,
       "default": 20,
       "editor": "number"
@@ -91,7 +51,7 @@
     "max_pages": {
       "title": "Maximum Pages",
       "type": "integer",
-      "description": "Maximum number of result pages to process (safety limit).",
+      "description": "Maximum number of result pages to process.",
       "minimum": 1,
       "editor": "number",
       "default": 3
@@ -99,26 +59,10 @@
     "maxConcurrency": {
       "title": "Max Concurrency",
       "type": "integer",
-      "description": "Maximum concurrent requests (tune to control speed vs. blocking risk).",
+      "description": "Maximum concurrent requests (tune speed vs blocking risk).",
       "minimum": 1,
       "default": 8,
       "editor": "number"
-    },
-    "requestDelayMillis": {
-      "title": "Delay Between Requests (ms)",
-      "type": "integer",
-      "description": "Optional fixed delay between requests, with small jitter, to reduce blocking (milliseconds).",
-      "minimum": 0,
-      "default": 0,
-      "editor": "number"
-    },
-    "logLevel": {
-      "title": "Log Level",
-      "type": "string",
-      "description": "Set log verbosity (error, warning, info, debug).",
-      "editor": "select",
-      "default": "INFO",
-      "enum": ["ERROR", "WARNING", "INFO", "DEBUG"]
     },
     "proxyConfiguration": {
       "title": "Proxy Configuration",
