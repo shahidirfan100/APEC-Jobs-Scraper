@@ -5,6 +5,7 @@ import { load as cheerioLoad } from 'cheerio';
 import { gotScraping } from 'got-scraping';
 import { HeaderGenerator } from 'header-generator';
 
+process.env.APIFY_LOG_LEVEL = 'INFO';
 await Actor.init();
 
 // ---- Configuration helpers -------------------------------------------------
@@ -315,12 +316,12 @@ async function main() {
         max_pages: MAX_PAGES_RAW = 5,
         collectDetails = true,
         proxyConfiguration,
-        maxConcurrency = 8,
+        maxConcurrency = 3,
     } = input;
 
     const USE_API = true;
     const REQUEST_DELAY_MS = 0;
-    log.setLevel('INFO');
+    log.setLevel(log.LEVELS.WARNING);
 
     const RESULTS_WANTED = Number.isFinite(+RESULTS_WANTED_RAW) ? Math.max(1, +RESULTS_WANTED_RAW) : 1;
     const MAX_PAGES = Number.isFinite(+MAX_PAGES_RAW) ? Math.max(1, +MAX_PAGES_RAW) : 1;
@@ -378,7 +379,7 @@ async function main() {
                 // API first
                 if (USE_API && allowApi) {
                     const apiRes = await fetchJobsViaApi(pageNo, search, proxyConf);
-                    crawlerLog.debug(`API page ${pageNo} returned ${apiRes.jobs.length} jobs (total ${apiRes.totalCount})`);
+                    crawlerLog.info(`API page ${pageNo} returned ${apiRes.jobs.length} jobs (total ${apiRes.totalCount})`);
 
                     if (apiRes.jobs.length) {
                         const remaining = RESULTS_WANTED - saved;
@@ -412,9 +413,12 @@ async function main() {
                 }
 
                 // HTML fallback: either listing-only or enqueue details
+                let foundOnPage = 0;
+
                 if (!collectDetails) {
                     const jobs = extractJobsFromCards($, request.url);
                     crawlerLog.info(`HTML listing found ${jobs.length} cards`);
+                    foundOnPage = jobs.length;
                     const remaining = RESULTS_WANTED - saved;
                     for (const job of jobs.slice(0, remaining)) {
                         if (saved >= RESULTS_WANTED) break;
@@ -423,6 +427,7 @@ async function main() {
                 } else {
                     const links = findJobLinks($, request.url);
                     crawlerLog.info(`Found ${links.length} detail links`);
+                    foundOnPage = links.length;
                     const remaining = RESULTS_WANTED - saved;
                     for (const link of links.slice(0, remaining)) {
                         await requestQueue.addRequest({ url: link, userData: { label: 'DETAIL' } });
@@ -431,7 +436,7 @@ async function main() {
 
                 if (saved >= RESULTS_WANTED) return;
 
-                if (pageNo + 1 < MAX_PAGES) {
+                if (pageNo + 1 < MAX_PAGES && foundOnPage > 0) {
                     const next = findNextPage($, request.url, pageNo);
                     if (next) {
                         crawlerLog.info(`Enqueuing next page: ${next}`);
