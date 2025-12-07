@@ -38,7 +38,8 @@
       "type": "boolean",
       "description": "Visit each job detail page to extract complete descriptions and additional information.",
       "editor": "checkbox",
-      "default": true
+      "default": true,
+      "prefill": false
     },
     "results_wanted": {
       "title": "Maximum Jobs to Extract",
@@ -46,6 +47,7 @@
       "description": "Maximum number of job listings to collect.",
       "minimum": 1,
       "default": 20,
+      "prefill": 10,
       "editor": "number"
     },
     "max_pages": {
@@ -54,7 +56,8 @@
       "description": "Maximum number of result pages to process.",
       "minimum": 1,
       "editor": "number",
-      "default": 3
+      "default": 3,
+      "prefill": 2
     },
     "maxConcurrency": {
       "title": "Max Concurrency",
@@ -62,6 +65,7 @@
       "description": "Maximum concurrent requests (tune speed vs blocking risk).",
       "minimum": 1,
       "default": 3,
+      "prefill": 3,
       "editor": "number"
     },
     "proxyConfiguration": {
@@ -71,7 +75,15 @@
       "editor": "proxy",
       "default": {
         "useApifyProxy": true,
-        "apifyProxyGroups": ["RESIDENTIAL"]
+        "apifyProxyGroups": [
+          "RESIDENTIAL"
+        ]
+      },
+      "prefill": {
+        "useApifyProxy": true,
+        "apifyProxyGroups": [
+          "RESIDENTIAL"
+        ]
       }
     }
   },
