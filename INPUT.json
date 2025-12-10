@@ -1,7 +1,11 @@
 {
-  "keyword": "ingenieur logiciel",
+  "keyword": "ingenieur",
   "location": "Paris",
   "results_wanted": 10,
   "max_pages": 2,
-  "collectDetails": true
+  "collectDetails": false,
+  "maxConcurrency": 3,
+  "proxyConfiguration": {
+    "useApifyProxy": true
+  }
 }

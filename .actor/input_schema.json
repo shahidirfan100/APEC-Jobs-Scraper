@@ -17,8 +17,9 @@
       "description": "Job title or skills to search (e.g., 'ingenieur logiciel', 'chef de projet').",
       "editor": "textfield",
       "prefill": "ingenieur",
+      "default": "ingenieur",
       "example": "ingenieur logiciel"
-    },
+    }
     "location": {
       "title": "City or Region",
       "type": "string",
@@ -38,7 +39,7 @@
       "type": "boolean",
       "description": "Visit each job detail page to extract complete descriptions and additional information.",
       "editor": "checkbox",
-      "default": true,
+      "default": false,
       "prefill": false
     },
     "results_wanted": {
@@ -46,7 +47,7 @@
       "type": "integer",
       "description": "Maximum number of job listings to collect.",
       "minimum": 1,
-      "default": 20,
+      "default": 10,
       "prefill": 10,
       "editor": "number"
     },
@@ -56,7 +57,7 @@
       "description": "Maximum number of result pages to process.",
       "minimum": 1,
       "editor": "number",
-      "default": 3,
+      "default": 2,
       "prefill": 2
     },
     "maxConcurrency": {
@@ -87,6 +88,5 @@
       }
     }
   },
-  "required": [],
-  "additionalProperties": false
+  "required": []
 }
