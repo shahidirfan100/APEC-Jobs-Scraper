@@ -19,7 +19,7 @@
       "prefill": "ingenieur",
       "default": "ingenieur",
       "example": "ingenieur logiciel"
-    }
+    },
     "location": {
       "title": "City or Region",
       "type": "string",
