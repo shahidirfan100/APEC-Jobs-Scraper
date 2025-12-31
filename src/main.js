@@ -1,6 +1,6 @@
 // APEC Jobs scraper - HTTP + JSON API first, HTML fallback
 import { Actor, log } from 'apify';
-import { Dataset, gotScraping } from 'crawlee';
+import { Dataset, gotScraping, sleep } from 'crawlee';
 import { load as cheerioLoad } from 'cheerio';
 
 const API_SEARCH_URL = 'https://www.apec.fr/cms/webservices/rechercheOffre';
@@ -68,21 +68,49 @@ const buildSearchUrl = ({ keyword, lieuIds }) => {
 
 const pickProxyUrl = async (proxyConfiguration) => (proxyConfiguration ? proxyConfiguration.newUrl() : undefined);
 
-const autocompleteLieu = async (query, proxyConfiguration) => {
-    const res = await gotScraping({
-        url: `${API_LIEU_AUTOCOMPLETE}?q=${encodeURIComponent(query)}`,
-        responseType: 'json',
-        proxyUrl: await pickProxyUrl(proxyConfiguration),
-        headers: DEFAULT_HEADERS,
-        timeout: { request: 20000 },
-        throwHttpErrors: false,
-    });
+// Enhanced retry logic for QA compliance
+const requestWithRetry = async (fn, context, maxRetries = 5) => {
+    let attempt = 0;
+    let lastError;
+    while (attempt < maxRetries) {
+        attempt += 1;
+        try {
+            return await fn();
+        } catch (error) {
+            lastError = error;
+            const isCritical = error.response && error.response.statusCode === 404; // 404 might mean job deleted, don't retry endlessly
+            if (isCritical) throw error;
 
-    if (res.statusCode !== 200) {
-        log.warning(`Lieu autocomplete failed (${res.statusCode}): ${res.body}`);
-        return [];
+            log.warning(`${context} failed (Attempt ${attempt}/${maxRetries}): ${error.message}`);
+
+            if (attempt < maxRetries) {
+                const delay = Math.pow(2, attempt) * 1000 + Math.random() * 1000;
+                await sleep(delay);
+            }
+        }
     }
-    return Array.isArray(res.body) ? res.body : [];
+    throw lastError;
+};
+
+const autocompleteLieu = async (query, proxyConfiguration) => {
+    return requestWithRetry(async () => {
+        const res = await gotScraping({
+            url: `${API_LIEU_AUTOCOMPLETE}?q=${encodeURIComponent(query)}`,
+            responseType: 'json',
+            proxyUrl: await pickProxyUrl(proxyConfiguration),
+            headers: DEFAULT_HEADERS,
+            timeout: { request: 20000 },
+            throwHttpErrors: false,
+        });
+
+        if (res.statusCode !== 200) {
+            throw new Error(`Autocomplete status ${res.statusCode}`);
+        }
+        return Array.isArray(res.body) ? res.body : [];
+    }, 'Lieu autocomplete', 3).catch(err => {
+        log.warning(`Autocomplete exhausted retries: ${err.message}`);
+        return [];
+    });
 };
 
 const resolveLieuIds = async ({ startUrl, location, department, proxyConfiguration }) => {
@@ -120,38 +148,41 @@ const resolveLieuIds = async ({ startUrl, location, department, proxyConfigurati
 };
 
 const fetchSearchPage = async (criteria, proxyConfiguration) => {
-    const res = await gotScraping({
-        url: API_SEARCH_URL,
-        method: 'POST',
-        json: criteria,
-        responseType: 'json',
-        headers: DEFAULT_HEADERS,
-        proxyUrl: await pickProxyUrl(proxyConfiguration),
-        timeout: { request: 30000 },
-        throwHttpErrors: false,
-    });
+    return requestWithRetry(async () => {
+        const res = await gotScraping({
+            url: API_SEARCH_URL,
+            method: 'POST',
+            json: criteria,
+            responseType: 'json',
+            headers: DEFAULT_HEADERS,
+            proxyUrl: await pickProxyUrl(proxyConfiguration),
+            timeout: { request: 30000 },
+            throwHttpErrors: false,
+        });
 
-    if (res.statusCode !== 200) {
-        const errorText = typeof res.body === 'string' ? res.body : res.body?.message;
-        throw new Error(`Search API status ${res.statusCode}: ${errorText || 'Unknown error'}`);
-    }
-    return res.body;
+        if (res.statusCode >= 400) {
+            throw new Error(`Search API status ${res.statusCode}: ${JSON.stringify(res.body).slice(0, 100)}`);
+        }
+        return res.body;
+    }, 'Search Page API', 5);
 };
 
 const fetchDetail = async (numeroOffre, proxyConfiguration) => {
-    const res = await gotScraping({
-        url: `${API_DETAIL_URL}?numeroOffre=${encodeURIComponent(numeroOffre)}`,
-        responseType: 'json',
-        headers: DEFAULT_HEADERS,
-        proxyUrl: await pickProxyUrl(proxyConfiguration),
-        timeout: { request: 30000 },
-        throwHttpErrors: false,
-    });
+    return requestWithRetry(async () => {
+        const res = await gotScraping({
+            url: `${API_DETAIL_URL}?numeroOffre=${encodeURIComponent(numeroOffre)}`,
+            responseType: 'json',
+            headers: DEFAULT_HEADERS,
+            proxyUrl: await pickProxyUrl(proxyConfiguration),
+            timeout: { request: 30000 },
+            throwHttpErrors: false,
+        });
 
-    if (res.statusCode !== 200) {
-        throw new Error(`Detail API status ${res.statusCode} for ${numeroOffre}`);
-    }
-    return res.body;
+        if (res.statusCode >= 400) {
+            throw new Error(`Detail API status ${res.statusCode}`);
+        }
+        return res.body;
+    }, `Detail API ${numeroOffre}`, 3);
 };
 
 const parseHtmlDetail = (html, url) => {
@@ -216,24 +247,31 @@ const buildJob = ({ listing, detail, source }) => {
 const htmlFallback = async ({ keyword, lieuIds, remaining, collectDetails, proxyConfiguration, seenIds }) => {
     const searchUrl = buildSearchUrl({ keyword, lieuIds });
     log.warning(`Falling back to HTML parsing from ${searchUrl}`);
-    const res = await gotScraping({
-        url: searchUrl,
-        headers: {
-            ...DEFAULT_HEADERS,
-            Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
-        },
-        responseType: 'text',
-        proxyUrl: await pickProxyUrl(proxyConfiguration),
-        timeout: { request: 30000 },
-        throwHttpErrors: false,
-    });
 
-    if (res.statusCode >= 400) {
-        log.warning(`HTML fallback failed (${res.statusCode})`);
+    let $;
+    try {
+        const res = await requestWithRetry(async () => {
+            const resp = await gotScraping({
+                url: searchUrl,
+                headers: {
+                    ...DEFAULT_HEADERS,
+                    Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+                },
+                responseType: 'text',
+                proxyUrl: await pickProxyUrl(proxyConfiguration),
+                timeout: { request: 30000 },
+                throwHttpErrors: false,
+            });
+            if (resp.statusCode >= 400) throw new Error(`HTML Search status ${resp.statusCode}`);
+            return resp;
+        }, 'HTML Search Fallback', 5);
+
+        $ = cheerioLoad(res.body);
+    } catch (err) {
+        log.error(`HTML fallback failed: ${err.message}`);
         return 0;
     }
 
-    const $ = cheerioLoad(res.body);
     const links = Array.from(new Set($('a[href*="detail-offre"]').map((_, el) => new URL($(el).attr('href'), searchUrl).href).get()));
     const limiter = createLimiter(3);
     let saved = 0;
@@ -247,18 +285,27 @@ const htmlFallback = async ({ keyword, lieuIds, remaining, collectDetails, proxy
             try {
                 let detailData = null;
                 if (collectDetails) {
-                    const detailRes = await gotScraping({
-                        url: link,
-                        headers: {
-                            ...DEFAULT_HEADERS,
-                            Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
-                        },
-                        responseType: 'text',
-                        proxyUrl: await pickProxyUrl(proxyConfiguration),
-                        timeout: { request: 30000 },
-                        throwHttpErrors: false,
-                    });
-                    detailData = detailRes.statusCode === 200 ? parseHtmlDetail(detailRes.body, link) : null;
+                    try {
+                        const detailRes = await requestWithRetry(async () => {
+                            const r = await gotScraping({
+                                url: link,
+                                headers: {
+                                    ...DEFAULT_HEADERS,
+                                    Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+                                },
+                                responseType: 'text',
+                                proxyUrl: await pickProxyUrl(proxyConfiguration),
+                                timeout: { request: 30000 },
+                                throwHttpErrors: false,
+                            });
+                            if (r.statusCode >= 400) throw new Error(`Status ${r.statusCode}`);
+                            return r;
+                        }, `HTML Detail ${link}`, 3);
+                        detailData = parseHtmlDetail(detailRes.body, link);
+                    } catch (dErr) {
+                        log.warning(`HTML detail failed after retries: ${dErr.message}`);
+                        // Fallthrough to listing-only data
+                    }
                 }
 
                 const job = buildJob({ listing: { url: link }, detail: detailData, source: 'html-fallback' });
@@ -323,12 +370,15 @@ try {
     const seenIds = new Set();
     const limiter = createLimiter(Math.max(1, Number(maxConcurrency) || 1));
     let saved = 0;
-    let apiFailed = false;
 
     // QA-compliant timeout: complete within 3.5 minutes (ample buffer for 5-min default)
     const startTime = Date.now();
     const MAX_RUNTIME_MS = 3.5 * 60 * 1000; // 210 seconds, leaving 90s buffer
     const stats = { pagesProcessed: 0, jobsSaved: 0, apiCalls: 0, errors: 0 };
+    let hasCriticalFailure = false;
+
+    // Retry loop for the main search phase is now handled by requestWithRetry inside fetchSearchPage
+    // We just iterate through pages here
 
     for (let page = 0; page < maxPages && saved < resultsWanted; page += 1) {
         // QA Safety: Check if approaching timeout limit
@@ -338,7 +388,7 @@ try {
             await Actor.setValue('TIMEOUT_REACHED', true);
             break;
         }
-        
+
         stats.pagesProcessed = page + 1;
 
         const criteria = { ...criteriaBase, pagination: { ...criteriaBase.pagination, startIndex: page * pageSize } };
@@ -353,8 +403,10 @@ try {
             log.info(`📄 Page ${page + 1}: ${resultats.length} results (total: ${totalCount}, saved: ${saved}/${resultsWanted})`);
         } catch (err) {
             stats.errors += 1;
-            apiFailed = true;
-            log.warning(`API search failed on page ${page + 1}: ${err.message}`);
+            log.error(`API search failed on page ${page + 1} after retries: ${err.message}`);
+
+            // If the first page of the API fails, it's a critical issue, but we might still try HTML fallback later
+            if (page === 0) hasCriticalFailure = true;
             break;
         }
 
@@ -371,7 +423,13 @@ try {
                     let detail = null;
                     if (collectDetails && listing.numeroOffre) {
                         stats.apiCalls += 1;
-                        detail = await fetchDetail(listing.numeroOffre, proxyConf);
+                        try {
+                            detail = await fetchDetail(listing.numeroOffre, proxyConf);
+                        } catch (dErr) {
+                            stats.errors += 1;
+                            log.warning(`Failed to fetch detail for ${listing.numeroOffre} after retries: ${dErr.message}`);
+                            // Continue with listing data only
+                        }
                     }
                     const job = buildJob({ listing, detail, source: 'api' });
                     await Dataset.pushData(job);
@@ -390,11 +448,10 @@ try {
         if (saved > 0 && page === 0) {
             log.info(`✅ First page complete: ${saved} jobs saved successfully!`);
         }
-        
-        // Performance metric for QA
+
         const elapsedSeconds = (Date.now() - startTime) / 1000;
-        log.info(`⚡ Performance: ${saved} jobs in ${elapsedSeconds.toFixed(1)}s (${(saved/elapsedSeconds).toFixed(2)} jobs/sec)`);
-        
+        log.info(`⚡ Performance: ${saved} jobs in ${elapsedSeconds.toFixed(1)}s (${(saved / elapsedSeconds).toFixed(2)} jobs/sec)`);
+
         // Safety check: stop if taking too long per page
         if (page > 0 && elapsedSeconds > MAX_RUNTIME_MS / 1000 * 0.8) {
             log.info(`⏱️ Approaching time limit at page ${page + 1}. Stopping gracefully.`);
@@ -406,19 +463,22 @@ try {
 
     if (saved < resultsWanted) {
         const remaining = resultsWanted - saved;
-        const added = await htmlFallback({
-            keyword: keywordValue,
-            lieuIds,
-            remaining,
-            collectDetails,
-            proxyConfiguration: proxyConf,
-            seenIds,
-        });
-        saved += added;
+        // Only run fallback if we haven't timed out and we either had a critical failure OR just didn't get enough results
+        if ((Date.now() - startTime < MAX_RUNTIME_MS)) {
+            const added = await htmlFallback({
+                keyword: keywordValue,
+                lieuIds,
+                remaining,
+                collectDetails,
+                proxyConfiguration: proxyConf,
+                seenIds,
+            });
+            saved += added;
+        }
     }
 
     const totalTime = (Date.now() - startTime) / 1000;
-    
+
     // Final statistics report for QA validation
     log.info('='.repeat(60));
     log.info('📊 ACTOR RUN STATISTICS');
@@ -428,7 +488,7 @@ try {
     log.info(`🌐 API calls made: ${stats.apiCalls}`);
     log.info(`⚠️  Errors encountered: ${stats.errors}`);
     log.info(`⏱️  Total runtime: ${totalTime.toFixed(2)}s`);
-    log.info(`⚡ Performance: ${(saved/totalTime).toFixed(2)} jobs/second`);
+    log.info(`⚡ Performance: ${(saved / totalTime).toFixed(2)} jobs/second`);
     log.info('='.repeat(60));
 
     // QA validation: ensure we have results
@@ -445,12 +505,13 @@ try {
             success: true
         });
     }
-    
+
 } catch (error) {
     log.error(`❌ CRITICAL ERROR: ${error.message}`);
     log.exception(error, 'Actor failed with exception');
-    throw error;
+    // Ensure we fail with a message so QA picks it up
+    await Actor.fail(`Actor failed: ${error.message}`);
 } finally {
-    // Always properly exit Actor for QA compliance
     await Actor.exit();
 }
+
